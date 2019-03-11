@@ -1,0 +1,442 @@
+---
+title: "Importing and Using EDW Data with R"
+author: "Michael Laviolette"
+date: "`r format(Sys.time(), '%B %d, %Y') # current date`"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+To connect to the EDW with R, your system needs to be set for "ODBC," which stands for "Open Data Base Connectivity." You'll also need the 64-bit database drivers since that's how you'll usually connect. If you're not sure how your system is configured, check with DoIT. 
+
+## Install and load the necessary packages
+
+To connect R to the EDW and run queries, you need the packages `DBI`, `odbc` and `dbplyr`. If you don't already have these installed, enter at the console:
+
+```{r, eval = FALSE}
+install.packages(c("tidyverse", "odbc", "dbplyr"))
+```
+
+Installing the packages only needs to be done once. To make the packages available for use, load them by typing the following in the console:
+
+```{r, eval=FALSE, results='hide'}
+library(tidyverse)
+library(DBI)
+library(dbplyr)
+```
+
+We don't have to explicitly load `odbc`.
+ 
+## Connect to the EDW
+
+To set up a connection that lets R talk to the EDW, type (or copy) the following in the console. A prompt box will appear for you to enter your username.  
+
+```{r, eval=FALSE}
+edwp <- dbConnect(odbc::odbc(), dsn = "edwp", dbname = "nhedwp",
+                  uid = rstudioapi::showPrompt(title = "Username", 
+                                               message ="Username", 
+                                               default = ""), 
+                  pwd = rstudioapi::askForPassword(prompt = "Password"))
+
+```
+![](Fig-1A.png)  
+
+After you enter your user name,  a second prompt box will appear for your password. Never save your password in a program script! 
+  
+![](Fig-1B.png)    
+
+The object `edwp` is your bridge to the EDW. Click the __Environment__ tab in the pane in the upper right; you'll see `edwp` as an Oracle object. Your queries will need to refer to it. Click the __Connections__ tab and you'll see the schemas to which you have access.
+
+![](Fig-2.png)  
+
+## Set up a pointer to the data table
+
+Tables in a database are organized in "schemas." To see the list of tables in the schema WRQPRD, enter
+
+```{r, eval=FALSE}
+dbListTables(edwp, schema = "WRQPRD")
+
+```
+
+To see the tables listed alphabetically, enter
+
+```{r, eval=FALSE}
+sort(dbListTables(edwp, schema = "WRQPRD"))
+
+```
+
+You should see GEOGRAPHY_TRANSFER as one of the tables. This table links the various coding systems for towns and counties. First we'll set up a link to that table with the function `tbl()`:
+
+```{r, eval=FALSE}
+geo_tbl <- tbl(edwp, in_schema("WRQPRD", "GEOGRAPHY_TRANSFER"))
+```
+
+Look at the __Environment__ tab to find `geo_tbl` in your workspace. The `geo_tbl` object just points to the table. As yet, there's no data in your workspace. You'll pull in the actual data only when you're ready to do something with it. This is what we want, especially if the table is very large.
+
+![](Fig-3.png)  
+
+Recall that entering the name of an object will print the object to the screen. 
+Entering `geo_tbl` will display the table as if it were in your workspace. Besides the first few rows, you see the data type for each field. This is just a display so that you can see what the table looks like. There's still no data in your workspace.
+
+```{r,eval=FALSE}
+geo_tbl
+```
+
+```{r,eval=FALSE, echo=FALSE}
+options(dplyr.width = Inf)
+```
+
+
+![](Fig-4.png)  
+
+We can get the field names and number of table rows with `colnames` and  `count`.
+
+```{r,eval=FALSE}
+colnames(geo_tbl)
+count(geo_tbl)
+```
+
+## Build a query
+
+The native language of the EDW is SQL ("Structured Query Language"). The `dbplyr` package lets us run queries using the R language by translating R code into SQL. For instance, the geography table contains more entries than towns, so we'll query for the subset of rows for the 259 towns. To choose specific rows from the table, use the `filter` function.
+
+```{r, eval=FALSE}
+town_tbl <- geo_tbl %>% 
+  filter(CENSUS_TOWN_CDE != "00000") 
+
+```
+This creates a new table pointer `town_tbl`. The symbol `%>%` is a pipe that feeds the result of each step into the next step. We need it because we'll add to the query.
+
+Behind the scenes the R code is translated to SQL. If you want to see the translation, apply the function `show_query` to the `town_tbl` object.
+
+```{r,eval=FALSE}
+show_query(town_tbl)
+
+# <SQL>
+# SELECT *
+# FROM (WRQPRD.GEOGRAPHY_TRANSFER) 
+# WHERE ("CENSUS_TOWN_CDE" != '00000')
+```
+
+The function call `count(town_tbl)` confirms that we have 259 rows.
+
+![](Fig-5.png) 
+
+Since we don't generally need all the fields in a table, we'll use the `select` function to pare the table down to two columns:  
+
+* the town name, which is GNIS_NME in the table but we'll change the field name to TOWN
+* the code we generally use to identify a town, called GEO_CDE
+
+```{r, eval=FALSE}
+town_tbl <- geo_tbl %>% 
+  filter(CENSUS_TOWN_CDE != "00000") %>% 
+  select(TOWN = GNIS_NME, GEO_CDE)
+
+```
+
+Once again, note that the `%>%` pipe feeds the result of each step into the next step. This is a very effective method for manipulating (or "wrangling") data.
+
+Next we'll sort the table rows by town name.
+
+```{r, eval=FALSE}
+town_tbl <- geo_tbl %>% 
+  filter(CENSUS_TOWN_CDE != "00000") %>% 
+  select(TOWN = GNIS_NME, GEO_CDE) %>% 
+  arrange(TOWN)
+
+```
+
+## Bring the data into your workspace
+
+At this point we're ready to bring the data into the workspace. The function `collect` will execute the query and create a data table. 
+
+```{r, eval=FALSE}
+town_tbl <- geo_tbl %>% 
+  filter(CENSUS_TOWN_CDE != "00000") %>% 
+  select(TOWN = GNIS_NME, GEO_CDE) %>% 
+  arrange(TOWN) %>% 
+  collect()
+
+```
+
+The Environment window now shows that `town_tbl` is a data table with 259 rows and two columns. R is much richer than SQL, so a good strategy is to pull in your data when you've done everything you can with SQL and want to use the native R functions.
+
+![](Fig-6.png) 
+
+## Summary statistics by group
+
+Here's another example using the POPULATION_CENSUS_TBL table, which contains Census decennial counts, and population estimates for intercensal and postcensal years. We'll compute the total state population by year.
+
+```{r,eval=FALSE}
+census_tbl <- tbl(edwp, in_schema("WRQPRD", "POPULATION_CENSUS_TBL"))
+
+pop_by_year <- census_tbl %>% 
+  group_by(CALENDAR_YR) %>% 
+  summarize(pop = sum(POPULATION_CNT)) %>% 
+  collect()
+
+```
+
+We get a warning that SQL ignores missing values, but in this case we know we don't have any missings.
+
+## Joining tables
+
+Suppose we wanted to know which towns have the highest mothers' ages. We have the code information in the birth data, but we want our table to show the town names. This means we have to link the birth data to the geography table. First we'll access the table BVR_BIRTH_RESTRICTED_VW from the BVRODS schema.
+
+```{r,eval=FALSE}
+birth_bvr <- tbl(edwp, in_schema("BVRODS", "BVR_BIRTH_RESTRICTED_VW"))
+```
+
+Once again, `birth_bvr` is a reference to the database table and your workspace contains no data. Now we'll query for births in 2017 and the columns we need.
+
+```{r, eval=FALSE}
+birth_tbl <- birth_bvr %>% 
+  filter(CHLD_BRTH_YEAR == "2017") %>% 
+  select(ST_FILE_NBR, MTHR_AGE, GEO_CDE = MTHR_RES_GEO_CD)
+```
+
+The `filter` function chooses birth occurring in 2017. The `select` function chooses the columns ST_FILE_NBR as a record ID, MTHR_AGE, and MTHR_RES_GEO_CD. I've changed the field name to GEO_CDE to match the name in the table from GEOGRAPHY_TRANSFER. We'll build a table `mom_age_tbl` that selects the rows from the geography table corresponding to the 259 towns and joins to the data in `birth_tbl`. 
+
+```{r, eval = FALSE}
+mom_age_tbl <- geo_tbl %>% 
+  filter(CENSUS_TOWN_CDE != "00000") %>% 
+  select(TOWN = GNIS_NME, GEO_CDE) %>% 
+  inner_join(birth_tbl)
+# Joining, by = "GEO_CDE"
+
+```
+
+The function `inner_join` merges the two tables. By default, the tables are joined on all columns which appear in both tables. In this case, the only matching column is GEO_CDE (since we changed the name of the field from the BVRODS table).
+
+Printing the `mom_age_tbl` object shows what the merged table looks like.
+
+```{r,eval=FALSE}
+mom_age_tbl
+
+# # Source:   lazy query [?? x 4]
+# # Database: Oracle 12.01.0020[michael.j.laviolette@nhedwp/]
+#    TOWN       GEO_CDE ST_FILE_NBR MTHR_AGE
+#    <chr>      <chr>   <chr>          <dbl>
+#  1 Derry      280808  2017000244        23
+#  2 Winchester 280323  2017011624        26
+#  3 Derry      280808  2017000245        23
+#  4 Manchester 280617  2017001559        23
+#  5 Salem      280832  2017008533        29
+#  6 Nashua     280622  2017010695        33
+#  7 Belmont    280103  2017007134        28
+#  8 Derry      280808  2017006872        25
+#  9 Conway     280205  2017002742        22
+# 10 Manchester 280617  2017000499        24
+# # ... with more rows
+
+```
+
+Note that we've done everything on the "back end" to make the database do the work. Now use `collect` to pull the data into your workspace.
+
+```{r,eval=FALSE}
+mom_age_tbl <- collect(mom_age_tbl)
+```
+
+You'll now see that `mom_age_tbl` is a data table in your workspace. 
+
+## Putting it all together
+
+In practice, you would experiment with queries until you're satisfied with the result, then pull the data into your workspace. The complete sequence might look something like this as part of a program script:
+
+```{r,eval=FALSE}
+# construct table of town names and VR geocodes
+geo_tbl <- tbl(edwp, in_schema("WRQPRD", "GEOGRAPHY_TRANSFER"))
+town_tbl <- geo_tbl %>% 
+  filter(CENSUS_TOWN_CDE != "00000") %>% 
+  select(TOWN = GNIS_NME, GEO_CDE) 
+# construct table of 2017 births with mother's age and resident town
+birth_bvr <- tbl(edwp, in_schema("BVRODS", "BVR_BIRTH_RESTRICTED_VW"))
+birth_tbl <- birth_bvr %>% 
+  filter(CHLD_BRTH_YEAR == "2017") %>% 
+  select(ST_FILE_NBR, MTHR_AGE, GEO_CDE = MTHR_RES_GEO_CD)
+# join the tables by geocode
+mean_ages <- inner_join(birth_tbl, town_tbl) %>% 
+  # group the new table by town; for each town find the number of births and 
+  #   mother's average age
+  group_by(TOWN) %>% 
+  summarize(n = n(),
+            mean_age = mean(MTHR_AGE)) %>%
+  # sort the summary table by decreasing average age
+  arrange(mean_age = desc(mean_age)) %>% 
+  # bring the summary table into your R workspace
+  collect()
+
+```
+
+We get the data and a warning that SQL (which is actually doing the work) ignores missings in computing summaries. This behavior is different from R, where you have to explicitly specify that you want to exclude missings.
+
+Now suppose we want to group the mothers' ages. Since we can't do this directly in SQL, we'll pull in some raw data and turn the grouping over to R.
+
+```{r,eval=FALSE}
+birth_ages <- birth_bvr %>% 
+  filter(CHLD_BRTH_YEAR == "2017") %>% 
+  select(ST_FILE_NBR, age = MTHR_AGE) %>% 
+  collect()
+
+```
+
+Use the `cut` function to compute the age grouping. We'll use the standard NAPHSIS grouping of 17 or younger, 18-19 years, 20-24, 25-29, 30-34, 35-39, and 40 or older. To see the documentation on this function, enter
+
+```{r,eval=FALSE}
+?cut
+```
+
+Use the `mutate` function to create a grouping variable `agegroup`.
+
+```{r,eval=FALSE}
+mom_age_groups <- birth_ages %>% 
+  mutate(agegroup = cut(age, c(0, 18, 20, 25, 30, 35, 40, Inf), 
+                        right = FALSE)) %>% 
+  count(agegroup)
+
+# # A tibble: 7 x 2
+#   agegroup     n
+#   <fct>    <int>
+# 1 [0,18)      70
+# 2 [18,20)    314
+# 3 [20,25)   1974
+# 4 [25,30)   3949
+# 5 [30,35)   4499
+# 6 [35,40)   2058
+# 7 [40,Inf)   392
+
+```
+
+Note that the default group label of `[20,25)` means ages 20 to 24. We can provide our own labels if we want.
+
+## Tidying up
+
+When you close RStudio the database connection will close automatically. You can also close the connection manually with `dbDisconnect`.
+
+```{r,eval=FALSE}
+dbDisconnect(edwp)
+```
+
+Once you establish a connection it's saved in your history, so you don't have to retype the connection code. Click the Connections tab and then the dropdown next to Connect. If you choose R Console the `dbConnect` function will appear at the prompt and you only need to enter your password.
+
+![](Fig-7.png) 
+
+## SQL translation
+
+Recall that the `dbplyr` package translates R code to SQL. R is much richer than SQL, so you'll need to be aware of the limitations. The `dbplyr` package knows how to convert the following R functions to SQL:
+
+* Single table verbs: `select`, `filter`, `mutate`, `arrange`, `group_by`, `summarize`
+* Dual table verbs: `inner_join`, `left_join`, `right_join`, `full_join`, `semi_join`, `anti_join`, `intersect`, `union`, `setdiff` 
+* Basic math operators: `+ - * / ^ %%` 
+* Math functions: `abs`, `ceiling`, `floor`, `exp`, `log`, `log10`, `round`, `sign`, trig functions (`sin`, `cos`, etc.)
+* Logical comparisons: `==` `!=` `<` `<=` `>=` `>` `%in%`
+* Boolean operations: `&` `&&` `|` `||` `!` `xor`
+* Basic aggregations: `mean`, `sum`, `min`, `max`, `sd`, `var`
+* String functions: `tolower`, `toupper`, `trimws`, `nchar`, `substr`
+* Data type conversion: `as.numeric`, `as.integer`, `as.character`
+
+If you need to use an R function not in the above list, you have two options:
+
+* Collect your data and finish processing with R functions.
+* Use the native Oracle SQL and let the database do the work on the back end.
+
+Date operations aren't yet supported by `dbplyr`, so you'll need the latter approach to work with dates. 
+
+## Working with dates
+
+In our EDW, dates are usually stored as date-time variables. The Oracle function `EXTRACT` returns the value of a specified date-time field. Its syntax is 
+
+```{r, eval=FALSE}
+EXTRACT(unit FROM field)
+```
+
+For instance, if you wanted to extract the year from a date-time, the format would be
+
+```{r, eval=FALSE}
+EXTRACT(year FROM datetime) 
+```
+
+We can't use this directly in our R query because the argument contains spaces, so we have to tell R that the extract function is not translated, but used as is. To do this, use the `sql` function. Here's an example to query for births occurring in 2017:
+
+```{r, eval=FALSE}
+birth_2017 <- birth_bvr %>% 
+  select(CHLD_DT_TM_BRTH) %>% 
+  filter(sql("extract(year from CHLD_DT_TM_BRTH) = 2017"))
+
+```
+
+The argument to `sql` is a character string spelling out the SQL command. If you want, call `show_query(birth_2017)` to see the SQL query. When we print 
+`birth_2017` we get
+
+```{r, eval=FALSE}
+# # Source:   lazy query [?? x 2]
+# # Database: Oracle 12.01.0020[michael.j.laviolette@nhedwp/]
+#    CHLD_DT_TM_BRTH     birth_yr
+#    <dttm>                 <dbl>
+#  1 2017-01-09 23:40:00
+#  2 2017-01-08 06:07:00
+#  3 2017-01-20 09:26:00
+#  4 2017-12-18 21:24:00
+#  5 2017-04-15 11:41:00
+#  6 2017-01-08 06:08:00
+#  7 2017-01-29 16:58:00
+#  8 2017-03-04 11:13:00
+#  9 2017-09-21 01:25:00
+# 10 2017-02-21 09:52:00
+# # ... with more rows
+
+```
+
+## Choosing a range of dates
+
+We can also use the `sql` function to filter for records in a specified range of dates. For instance, to choose births between April 1, 2011 and December 31, 2018 we would write
+
+```{r, eval=FALSE}
+births <- birth_bvr %>% 
+    filter(sql("CHLD_DT_TM_BRTH between date '2011-04-01' and date '2018-12-31'"))
+
+```
+
+## Computing ages
+
+Often we want to compute the number of complete years between two dates, such as birth and death. The quick and dirty way is to divide the difference in days by 365.25, but we want age as number of birth anniversaries. The `DECD_AGE` in the vital records death table doesn't give age in years, so I always compute the ages. The keys are the `TRUNC` and `MONTHS_BETWEEN` functions in Oracle SQL. This code will compute the ages of persons who died during 2017:
+
+```{r, eval=FALSE}
+death_bvr <- tbl(edwp, in_schema("BVRODS", "BVR_DEATH_TBL"))
+death_2017 <- death_bvr %>% 
+  select(DECD_BRTH_DT, DECD_DTH_DT) %>% 
+  # extract year from date-time field
+  filter(sql("extract(year from DECD_DTH_DT) = 2017")) %>% 
+  # compute age as number of birth anniversaries before event
+  mutate(age = trunc(months_between(DECD_DTH_DT, DECD_BRTH_DT) / 12)) 
+
+```
+
+Once you have the ages, you can `collect` the data and compute age groups with the `cut` function, or perform whatever processing you need.
+
+## Conclusion
+
+The `odbc` and `dbplyr` packages are useful when you have so much data that it does not all fit into memory simultaneously. 
+
+* Discontinue use of `RODBC` package; new package `odbc` is much faster
+* Submit ticket to have 64-bit Oracle drivers installed
+    + Don't have to switch between 32- and 64-bit R
+    + 64-bit allows importing larger data sets
+* Use the `dbplyr` package and `dplyr` verbs to query your data
+* Do as much as possible on the "back end" with your queries
+    + Use `sql` for functions not yet supported by `dbplyr` (especially date-time functions)
+    + Use `collect` to import your data into R when your query is satisfactory
+* Continue processing with `R` functions as needed
+
+
+
+
+
+
+
+
