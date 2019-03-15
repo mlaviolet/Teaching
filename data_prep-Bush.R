@@ -59,4 +59,4 @@ atrazine <- read_xls("at.xls") %>%
          gender = factor(gender, 1:0, c("Male", "Female")),
          rtp = factor(rtp, 0:1, c("No", "Returned to play")))
 
-save(at, frac, hgb, nets, file = "Bush.Rdata")
+save(atrazine, fracture, hgb, nets, file = "Bush.Rdata")
