@@ -1,0 +1,20 @@
+x <- c(1, 2.5, 5, 10, 25, 50, 75, 90, 95, 97.5, 99)
+# pdf(file = "z-curve.pdf", width = 6, height = 3.5)
+par(mar = c(3, 3, 3, 2) + 0.1)
+curve(dnorm(x), -3.2, 3.2, xlab = "", ylab = "", yaxt = "n")
+axis(3, qnorm(x / 100), labels = x, line = 0.5, cex.axis = 0.5,
+     tck = 0.01, mgp = c(3, 0.25, 0))
+# mtext("Percent", 3, line = 0.5, at = -3.4)
+Hmisc::minor.tick(nx = 10, ny = 1)
+dev.off()
+
+x <- c(1, 2.5 ,5, 10, 25, 50, 75, 90, 95, 97.5, 99)
+# png(file = "z-curve.png", width = 640, height = 240)
+# pdf(file = "z-curve.png", width = 4, height = 1.5)
+par(mar = c(3, 3, 3, 2) + 0.1)
+curve(dnorm(x), -3.2, 3.2, xlab = "", ylab = "", yaxt = "n")
+axis(3, qnorm(x / 100), labels = x, line = 0.5, cex.axis = 0.95,
+     tck = 0.01, mgp = c(3, 0.25, 0))
+# mtext("Percent", 3, line = 0.5, at = -3.4)
+Hmisc::minor.tick(nx = 10, ny = 0)
+dev.off()
