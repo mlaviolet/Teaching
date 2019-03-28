@@ -1,26 +1,13 @@
 windowsFonts(B = windowsFont("Symbol"))
 x <- c(0.5, 1, 2.5, 5, 10, 25, 50, 75, 90, 95, 97.5, 99, 99.5)
-png(file = "z-curve.png", width = 740, height = 380)
+# png(file = "z-curve.png", width = 740, height = 380)
 # pdf(file = "z-curve.pdf")
 # pdf(file = "z-curve.pdf", width = 6, height = 3.5)
-par(mar = c(3, 3, 3, 2) + 0.1)
+par(mar = c(6, 3, 1, 2) + 0.1)
 curve(dnorm(x), -3.2, 3.2, xlab = "", ylab = "", yaxt = "n", xaxt = "n", 
       lwd = 2, bty = "n")
-axis(1, seq(-3, 3), cex.axis = 1.25, family = "B", font = 2)
-axis(3, qnorm(x / 100), labels = x, line = 0.5, cex.axis = 0.95,
+axis(1, seq(-3, 3), cex.axis = 1.00, family = "B")
+Hmisc::minor.tick(nx = 10, ny = 1)
+axis(1, qnorm(x / 100), labels = x, line = 4, cex.axis = 0.95,
      tck = 0.01, mgp = c(3, 0.25, 0), font = 2)
 # mtext("Percent", 3, line = 0.5, at = -3.4)
-Hmisc::minor.tick(nx = 10, ny = 1)
-dev.off()
-
-# x <- c(1, 2.5, 5, 10, 25, 50, 75, 90, 95, 97.5, 99)
-# png(file = "z-curve.png", width = 640, height = 240)
-# # pdf(file = "z-curve.png", width = 4, height = 1.5)
-# par(mar = c(3, 3, 3, 2) + 0.1)
-# curve(dnorm(x), -3.2, 3.2, xlab = "", ylab = "", yaxt = "n", lwd = 2)
-# axis(1, seq(-3, 3), font = 2, cex.axis = 1.25)
-# axis(3, qnorm(x / 100), labels = x, line = 0.5, cex.axis = 0.9,
-#      tck = 0.01, mgp = c(3, 0.25, 0), font = 2)
-# # mtext("Percent", 3, line = 0.5, at = -3.4)
-# Hmisc::minor.tick(nx = 10, ny = 0)
-# dev.off()
