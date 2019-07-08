@@ -11,3 +11,19 @@ Hmisc::minor.tick(nx = 10, ny = 1)
 axis(1, qnorm(x / 100), labels = x, line = 4, cex.axis = 0.95,
      tck = 0.01, mgp = c(3, 0.25, 0), font = 2)
 # mtext("Percent", 3, line = 0.5, at = -3.4)
+
+# "ideal" normal histogram
+z_dat <- data.frame(
+   z = c(
+  rep(-2,   3),
+  rep(-1.5, 8),
+  rep(-1,   12),
+  rep(-0.5, 15),
+  rep( 0,   20),
+  rep( 0.5, 15),
+  rep( 1,   12),
+  rep( 1.5,  8),
+  rep( 2,    3)
+  ))
+
+histogram(~z, z_dat, nint = 9, density = TRUE, fit = "normal")
