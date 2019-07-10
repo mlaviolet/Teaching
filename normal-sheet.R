@@ -13,10 +13,9 @@ axis(1, qnorm(x / 100), labels = x, line = 4, cex.axis = 0.95,
 # mtext("Percent", 3, line = 0.5, at = -3.4)
 
 # "ideal" normal histogram
+library(mosaic)
 z_dat <- data.frame(z = c(
   rep(-2.5, 1), rep(-2, 3), rep(-1.5, 8), rep(-1, 12), rep(-0.5, 15),
-  rep(0, 18),
+  rep(0, 20),
   rep(0.5, 15), rep(1, 12), rep(1.5, 8), rep(2, 3), rep(2.5, 1)))
-
-library(mosaic)
 histogram(~z, z_dat, nint = 11, density = TRUE, fit = "normal")
